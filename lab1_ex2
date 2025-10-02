@@ -1,0 +1,25 @@
+#include <iostream>
+#include <map>
+#include <string>
+
+int main() {
+    std::string seq = "A T T G C C C C G A A T";
+    std::string clean_seq;
+
+    for (char c : seq) {
+        if (c != ' ') clean_seq += c;
+    }
+    
+    
+    std::map<char, int> counts;
+    for (char c : clean_seq) {
+        counts[c]++;
+    }
+    double total = clean_seq.size();
+    std::cout << "Relative frequencies:\n";
+    for (auto pair : counts) {
+        std::cout << pair.first << ": " << pair.second / total << "\n";
+    }
+    
+    return 0;
+}
