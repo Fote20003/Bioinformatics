@@ -1,0 +1,252 @@
+import React, { useState, useRef } from 'react';
+import { Upload, FileText, Dna, AlertCircle } from 'lucide-react';
+
+const FastaAnalyzerApp = () => {
+  const [fastaContent, setFastaContent] = useState('');
+  const [results, setResults] = useState('');
+  const [fileName, setFileName] = useState('');
+  const [error, setError] = useState('');
+  const fileInputRef = useRef(null);
+
+  // Algorithm 1: GC Content Calculator
+  const calculateGCContent = (sequence) => {
+    const seq = sequence.toUpperCase();
+    const gcCount = (seq.match(/[GC]/g) || []).length;
+    const totalCount = seq.replace(/[^ATGCU]/g, '').length;
+    return totalCount > 0 ? ((gcCount / totalCount) * 100).toFixed(2) : 0;
+  };
+
+  // Algorithm 2: Complement and Reverse Complement
+  const getComplement = (sequence) => {
+    const complementMap = {
+      'A': 'T', 'T': 'A', 'G': 'C', 'C': 'G',
+      'U': 'A', 'a': 't', 't': 'a', 'g': 'c', 'c': 'g', 'u': 'a'
+    };
+    return sequence.split('').map(base => complementMap[base] || base).join('');
+  };
+
+  const getReverseComplement = (sequence) => {
+    return getComplement(sequence).split('').reverse().join('');
+  };
+
+  // Algorithm 3: Sequence Statistics
+  const getSequenceStats = (sequence) => {
+    const seq = sequence.toUpperCase();
+    const length = seq.replace(/[^ATGCU]/g, '').length;
+    const counts = {
+      A: (seq.match(/A/g) || []).length,
+      T: (seq.match(/T/g) || []).length,
+      G: (seq.match(/G/g) || []).length,
+      C: (seq.match(/C/g) || []).length,
+      U: (seq.match(/U/g) || []).length
+    };
+    return { length, counts };
+  };
+
+  // Parse FASTA file
+  const parseFasta = (content) => {
+    const lines = content.split('\n');
+    const sequences = [];
+    let currentSeq = { header: '', sequence: '' };
+
+    for (let line of lines) {
+      line = line.trim();
+      if (line.startsWith('>')) {
+        if (currentSeq.header) {
+          sequences.push(currentSeq);
+        }
+        currentSeq = { header: line.substring(1), sequence: '' };
+      } else if (line) {
+        currentSeq.sequence += line;
+      }
+    }
+    
+    if (currentSeq.header) {
+      sequences.push(currentSeq);
+    }
+    
+    return sequences;
+  };
+
+  // Analyze FASTA file
+  const analyzeFasta = (content) => {
+    try {
+      setError('');
+      const sequences = parseFasta(content);
+      
+      if (sequences.length === 0) {
+        setError('No valid sequences found in FASTA file');
+        return;
+      }
+
+      let output = '═══════════════════════════════════════════════════════\n';
+      output += '          FASTA SEQUENCE ANALYSIS RESULTS\n';
+      output += '═══════════════════════════════════════════════════════\n\n';
+
+      sequences.forEach((seq, index) => {
+        output += `SEQUENCE ${index + 1}\n`;
+        output += `${'─'.repeat(55)}\n`;
+        output += `Header: ${seq.header}\n\n`;
+        
+        const stats = getSequenceStats(seq.sequence);
+        const gcContent = calculateGCContent(seq.sequence);
+        
+        output += `BASIC STATISTICS:\n`;
+        output += `  • Length: ${stats.length} bp\n`;
+        output += `  • GC Content: ${gcContent}%\n\n`;
+        
+        output += `NUCLEOTIDE COMPOSITION:\n`;
+        output += `  • Adenine (A):  ${stats.counts.A.toString().padStart(6)} (${((stats.counts.A/stats.length)*100).toFixed(2)}%)\n`;
+        output += `  • Thymine (T):  ${stats.counts.T.toString().padStart(6)} (${((stats.counts.T/stats.length)*100).toFixed(2)}%)\n`;
+        output += `  • Guanine (G):  ${stats.counts.G.toString().padStart(6)} (${((stats.counts.G/stats.length)*100).toFixed(2)}%)\n`;
+        output += `  • Cytosine (C): ${stats.counts.C.toString().padStart(6)} (${((stats.counts.C/stats.length)*100).toFixed(2)}%)\n`;
+        if (stats.counts.U > 0) {
+          output += `  • Uracil (U):   ${stats.counts.U.toString().padStart(6)} (${((stats.counts.U/stats.length)*100).toFixed(2)}%)\n`;
+        }
+        
+        output += `\nSEQUENCE (first 80 bp):\n`;
+        output += `  ${seq.sequence.substring(0, 80)}\n`;
+        
+        if (seq.sequence.length <= 200) {
+          output += `\nCOMPLEMENT:\n`;
+          output += `  ${getComplement(seq.sequence).substring(0, 80)}\n`;
+          
+          output += `\nREVERSE COMPLEMENT:\n`;
+          output += `  ${getReverseComplement(seq.sequence).substring(0, 80)}\n`;
+        }
+        
+        output += `\n${'═'.repeat(55)}\n\n`;
+      });
+
+      setResults(output);
+    } catch (err) {
+      setError('Error parsing FASTA file: ' + err.message);
+    }
+  };
+
+  const handleFileUpload = (event) => {
+    const file = event.target.files[0];
+    if (file) {
+      setFileName(file.name);
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        const content = e.target.result;
+        setFastaContent(content);
+        analyzeFasta(content);
+      };
+      reader.readAsText(file);
+    }
+  };
+
+  const handleSampleFile = () => {
+    const sampleFasta = `>sample_dna_sequence_1 Homo sapiens chromosome 1, GRCh38.p13 Primary Assembly
+ATGGCTAGCTAGCTAGCTAGCTAGCTAGCTAGCTAGCTAGCTAGCTAGCTAGCTAGCTAGCTAGCTAGCTAGCT
+AGCTAGCTAGCTAGCTAGCTAGCTAGCTAGCTAGCTAGCTAGCTAGCTAGCTAGCTAGCTAGCTAGCTAGCTAG
+CTAGCTAGCTAGCTAGCTAGCTAGCTAGCTAGCTAGCTAGCTAGCTAGCTAGCTAGCTAGCTAGCTAGCTAGCT
+GCGCGCGCGCGCGCGCGCGCGCGCGCGCGCGCGCGCGCGCGCGCGCGCGCGCGCGCGCGCGCGCGCGCGC
+ATATATATATATATATATATATATATATATATATATATATATATATATATATATATATATATATAT
+>sample_gene_brca1 BRCA1 breast cancer gene partial sequence
+ATGGATTTCGAGAGCAGAAGAATGTAACAGCAGTTTATTACTCACTAAAGACAGAATGAATGTAGAAAAGGCTG
+AATTCTGTAATAAAAGCAAACAGCCTGGCTTAGCAAGGAGCCAACATAACAGATGGGCTGGAAGTAAGGAAACA
+TGTAATGATAGGCGGACTCCCAGCACAGAAAAAAAGGTAGATCTGAATGCTGATCCCCTGTGTGAGAGAAAAGA
+ATGGAATAAGCAGAAACTGCCATGCTCAGAGAATCCTAGAGATACTGAAGATGTTCCTTGGATAACACTAAATA
+GCAGCATTCAGAAAGTTAATGAGTGGTTTTCCAGAAGTGATGAACTGTTAGGTTCTGATGACTCACATGATGGG
+>sample_rna_sequence RNA transcript example
+AUGGUAGCUAGCUAGCUAGCUAGCUAGCUAGCUAGCUAGCUAGCUAGCUAGCUAGCUAGCUAGCUAG
+GCGCGCGCGCGCGCGCGCGCGCGCGCGCGCGCGCGCGCGCGCGCGCGCGCGCGCGCGCGCGCGC
+AUAUAUAUAUAUAUAUAUAUAUAUAUAUAUAUAUAUAUAUAUAUAUAUAUAUAUAUAUAUA`;
+    
+    setFastaContent(sampleFasta);
+    setFileName('sample_sequences.fasta');
+    analyzeFasta(sampleFasta);
+  };
+
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50 p-8">
+      <div className="max-w-6xl mx-auto">
+        {/* Header */}
+        <div className="text-center mb-8">
+          <div className="flex items-center justify-center gap-3 mb-4">
+            <Dna className="w-12 h-12 text-blue-600" />
+            <h1 className="text-4xl font-bold text-gray-800">FASTA Sequence Analyzer</h1>
+          </div>
+          <p className="text-gray-600">Upload and analyze biological sequence data in FASTA format</p>
+        </div>
+
+        {/* Control Panel */}
+        <div className="bg-white rounded-lg shadow-lg p-6 mb-6">
+          <div className="flex flex-wrap gap-4 items-center justify-center">
+            <input
+              type="file"
+              ref={fileInputRef}
+              onChange={handleFileUpload}
+              accept=".fasta,.fa,.fna,.txt"
+              className="hidden"
+            />
+            
+            <button
+              onClick={() => fileInputRef.current.click()}
+              className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-lg font-semibold transition-colors shadow-md"
+            >
+              <Upload className="w-5 h-5" />
+              Choose FASTA File
+            </button>
+            
+            <button
+              onClick={handleSampleFile}
+              className="flex items-center gap-2 bg-green-600 hover:bg-green-700 text-white px-6 py-3 rounded-lg font-semibold transition-colors shadow-md"
+            >
+              <FileText className="w-5 h-5" />
+              Load Sample File
+            </button>
+          </div>
+          
+          {fileName && (
+            <div className="mt-4 text-center">
+              <p className="text-sm text-gray-600">
+                Current file: <span className="font-semibold text-blue-600">{fileName}</span>
+              </p>
+            </div>
+          )}
+        </div>
+
+        {/* Error Display */}
+        {error && (
+          <div className="bg-red-50 border-l-4 border-red-500 p-4 mb-6 rounded">
+            <div className="flex items-center gap-2">
+              <AlertCircle className="w-5 h-5 text-red-500" />
+              <p className="text-red-700">{error}</p>
+            </div>
+          </div>
+        )}
+
+        {/* Results Display */}
+        <div className="bg-white rounded-lg shadow-lg p-6">
+          <h2 className="text-2xl font-bold text-gray-800 mb-4 flex items-center gap-2">
+            <FileText className="w-6 h-6 text-blue-600" />
+            Analysis Results
+          </h2>
+          
+          <div className="bg-gray-50 rounded-lg p-4 border border-gray-200">
+            <pre className="font-mono text-sm text-gray-800 whitespace-pre-wrap overflow-x-auto max-h-96 overflow-y-auto">
+              {results || 'No results yet. Please upload a FASTA file or load a sample file to begin analysis.'}
+            </pre>
+          </div>
+        </div>
+
+        {/* Info Panel */}
+        <div className="mt-6 bg-blue-50 rounded-lg p-6 border border-blue-200">
+          <h3 className="font-semibold text-blue-900 mb-2">About FASTA Format:</h3>
+          <ul className="text-sm text-blue-800 space-y-1">
+            <li>• First line starts with '>' followed by sequence ID and description</li>
+            <li>• Sequence data starts from the second line</li>
+            <li>• Sequences are typically split into 80-character lines</li>
+            <li>• Supports DNA, RNA, and protein sequences</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+export default FastaAnalyzerApp;
